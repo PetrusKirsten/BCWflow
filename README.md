@@ -136,6 +136,10 @@ New dashboard pages:
 
 The notebook `notebooks/02_exploratory_analysis.ipynb` mirrors the dashboard logic and should be used to write the first portfolio insights. With only a few snapshots, use the charts as pipeline validation rather than stable operational conclusions.
 
+## Wait-time reporting policy
+
+Some attractions may appear without a reported `wait_time`. The project now treats those values as missing/non-reported instead of converting them to zero. Queue-pressure charts exclude them by default, while the **Data Coverage** page keeps them visible through wait-time reporting metrics. See `docs/wait_time_policy.md` for the interpretation rules.
+
 ## Ethics and limitations
 
 - Queue times are treated as proxy data, not official park attendance.

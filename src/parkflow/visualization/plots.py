@@ -10,6 +10,7 @@ from parkflow.analysis.eda import (
     build_hourly_summary,
     build_time_series_summary,
     build_weather_summary,
+    build_wait_time_availability,
     prepare_queue_dataset,
 )
 
@@ -105,6 +106,7 @@ def plot_hourly_wait_profile(df: pd.DataFrame):
 def plot_wait_distribution(df: pd.DataFrame, rides: list[str] | None = None):
     data = prepare_queue_dataset(df)
     data = data[data["is_open_bool"].fillna(False)]
+    data = data[data["wait_time_reported"]]
     if rides:
         data = data[data["ride_name"].isin(rides)]
     if data.empty:
@@ -166,6 +168,7 @@ def plot_weather_wait_comparison(df: pd.DataFrame):
 def plot_temperature_vs_wait(df: pd.DataFrame):
     data = prepare_queue_dataset(df)
     data = data[data["is_open_bool"].fillna(False)]
+    data = data[data["wait_time_reported"]]
     if data.empty or not {"temperature_2m", "wait_time"}.issubset(data.columns) or data["temperature_2m"].notna().sum() < 2:
         return empty_figure("Temperature × wait time", "Temperature data is not available yet")
 
@@ -176,4 +179,39 @@ def plot_temperature_vs_wait(df: pd.DataFrame):
         hover_data=[col for col in ["ride_name", "hour", "precipitation"] if col in data.columns],
         title="Temperature × wait time",
         labels={"temperature_2m": "Temperature (°C)", "wait_time": "Wait time (min)"},
+    )
+
+
+def plot_wait_time_reporting_by_ride(df: pd.DataFrame):
+    availability = build_wait_time_availability(df)
+    if availability.empty:
+        return empty_figure("Wait-time reporting by attraction")
+
+    chart = availability.sort_values("wait_time_reported_rate", ascending=True)
+    return px.bar(
+        chart,
+        x="wait_time_reported_rate",
+        y="ride_name",
+        orientation="h",
+        hover_data=[
+            col
+            for col in [
+                "records",
+                "wait_time_reported_records",
+                "missing_wait_time_records",
+                "open_rate",
+                "mode_hint",
+            ]
+            if col in chart
+        ],
+        title="Wait-time reporting rate by attraction",
+        labels={
+            "wait_time_reported_rate": "Reported wait-time rate",
+            "ride_name": "Attraction",
+            "records": "Records",
+            "wait_time_reported_records": "Reported wait records",
+            "missing_wait_time_records": "Missing wait records",
+            "open_rate": "Open rate",
+            "mode_hint": "Mode hint",
+        },
     )

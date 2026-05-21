@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import plotly.express as px
 import streamlit as st
 
 from parkflow.analysis.eda import build_heatmap_matrix, build_hourly_summary, prepare_queue_dataset
@@ -34,20 +33,24 @@ with st.sidebar:
         index=0,
     )
     only_open = st.checkbox("Only open attraction records", value=True)
-    min_observations = st.number_input("Minimum observations per attraction", min_value=1, value=1, step=1)
+    min_observations = st.number_input("Minimum reported observations per attraction", min_value=1, value=1, step=1)
 
 plot_df = df[df["is_open_bool"].fillna(False)] if only_open else df.copy()
+records_before_queue_filter = len(plot_df)
+plot_df = plot_df[plot_df["wait_time_reported"]]
+
 if "ride_name" in plot_df.columns:
     counts = plot_df.groupby("ride_name").size()
     keep_rides = counts[counts >= min_observations].index
     plot_df = plot_df[plot_df["ride_name"].isin(keep_rides)]
 
-summary = build_hourly_summary(plot_df, only_open=False)
+summary = build_hourly_summary(plot_df, only_open=False, require_wait_time=True)
 
-col1, col2, col3 = st.columns(3)
-col1.metric("Rows used", f"{len(plot_df):,}")
-col2.metric("Hours covered", f"{plot_df['hour'].nunique() if 'hour' in plot_df else 0:,}")
-col3.metric("Attractions", f"{plot_df['ride_name'].nunique() if 'ride_name' in plot_df else 0:,}")
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Queue records used", f"{len(plot_df):,}")
+col2.metric("Excluded no-wait records", f"{records_before_queue_filter - len(plot_df):,}")
+col3.metric("Hours covered", f"{plot_df['hour'].nunique() if 'hour' in plot_df else 0:,}")
+col4.metric("Attractions", f"{plot_df['ride_name'].nunique() if 'ride_name' in plot_df else 0:,}")
 
 if len(plot_df) < 100:
     st.warning(
@@ -55,17 +58,17 @@ if len(plot_df) < 100:
     )
 
 st.subheader("Attraction × hour heatmap")
-st.plotly_chart(plot_hourly_heatmap(plot_df, metric=metric), width='stretch')
+st.plotly_chart(plot_hourly_heatmap(plot_df, metric=metric), width="stretch")
 
 st.subheader("Hourly wait profile")
-st.plotly_chart(plot_hourly_wait_profile(plot_df), width='stretch')
+st.plotly_chart(plot_hourly_wait_profile(plot_df), width="stretch")
 
 st.subheader("Hourly summary table")
 if summary.empty:
     st.info("No hourly summary could be generated yet.")
 else:
-    st.dataframe(summary, width='stretch', hide_index=True)
+    st.dataframe(summary, width="stretch", hide_index=True)
 
 with st.expander("Heatmap matrix"):
-    matrix = build_heatmap_matrix(plot_df, metric=metric, only_open=False)
-    st.dataframe(matrix, width='stretch')
+    matrix = build_heatmap_matrix(plot_df, metric=metric, only_open=False, require_wait_time=True)
+    st.dataframe(matrix, width="stretch")

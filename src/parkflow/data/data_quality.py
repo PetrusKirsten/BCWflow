@@ -39,6 +39,11 @@ def load_best_available_dataset(paths: DataPaths | None = None) -> tuple[pd.Data
     return pd.DataFrame(), None
 
 
+def _coerce_open(series: pd.Series) -> pd.Series:
+    lowered = series.astype("string").str.strip().str.lower()
+    return lowered.isin(["true", "1", "yes"]).where(lowered.notna(), pd.NA).astype("boolean")
+
+
 def add_audit_time_columns(df: pd.DataFrame, timezone: str = PARK_TIMEZONE) -> pd.DataFrame:
     """Add normalized local timestamp columns used in coverage summaries."""
 
@@ -56,6 +61,14 @@ def add_audit_time_columns(df: pd.DataFrame, timezone: str = PARK_TIMEZONE) -> p
     if timestamp_col in result.columns:
         result["audit_date_local"] = result[timestamp_col].dt.date
         result["audit_hour_local"] = result[timestamp_col].dt.hour
+
+    if "wait_time" in result.columns:
+        result["wait_time_numeric"] = pd.to_numeric(result["wait_time"], errors="coerce")
+        result["wait_time_reported"] = result["wait_time_numeric"].notna()
+        result["missing_wait_time"] = ~result["wait_time_reported"]
+
+    if "is_open" in result.columns:
+        result["is_open_bool"] = _coerce_open(result["is_open"])
 
     return result
 
@@ -81,18 +94,21 @@ def build_coverage_summary(df: pd.DataFrame) -> dict[str, object]:
             "p90_wait_min": None,
             "open_rate": None,
             "positive_wait_rate": None,
+            "wait_time_reported_rate": None,
+            "missing_wait_time_records": 0,
         }
 
     audited = add_audit_time_columns(df)
     snapshot_col = "ingested_at_utc" if "ingested_at_utc" in audited.columns else "last_updated_utc"
     snapshot_local_col = "ingested_at_local" if "ingested_at_local" in audited.columns else "last_updated_local"
 
-    wait = pd.to_numeric(audited.get("wait_time", pd.Series(dtype="float64")), errors="coerce")
-    is_open = audited.get("is_open")
-    if is_open is not None:
-        open_rate = is_open.astype(str).str.lower().isin(["true", "1", "yes"]).mean()
-    else:
-        open_rate = None
+    wait = audited.get("wait_time_numeric", pd.Series(dtype="float64"))
+    wait_reported = audited.get("wait_time_reported", wait.notna())
+    reported_wait = wait[wait_reported.fillna(False)] if len(wait) else wait
+
+    open_rate = None
+    if "is_open_bool" in audited:
+        open_rate = audited["is_open_bool"].mean()
 
     return {
         "rows": int(len(audited)),
@@ -107,10 +123,12 @@ def build_coverage_summary(df: pd.DataFrame) -> dict[str, object]:
         "days_covered": int(audited["audit_date_local"].nunique())
         if "audit_date_local" in audited
         else 0,
-        "average_wait_min": float(wait.mean()) if not wait.dropna().empty else None,
-        "p90_wait_min": float(wait.quantile(0.90)) if not wait.dropna().empty else None,
-        "open_rate": float(open_rate) if open_rate is not None else None,
-        "positive_wait_rate": float((wait > 0).mean()) if len(wait) else None,
+        "average_wait_min": float(reported_wait.mean()) if not reported_wait.dropna().empty else None,
+        "p90_wait_min": float(reported_wait.quantile(0.90)) if not reported_wait.dropna().empty else None,
+        "open_rate": float(open_rate) if open_rate is not None and not pd.isna(open_rate) else None,
+        "positive_wait_rate": float((reported_wait > 0).mean()) if len(reported_wait.dropna()) else None,
+        "wait_time_reported_rate": float(wait_reported.mean()) if len(audited) else None,
+        "missing_wait_time_records": int((~wait_reported).sum()) if len(audited) else 0,
     }
 
 
@@ -121,12 +139,17 @@ def ride_coverage_report(df: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
 
     audited = add_audit_time_columns(df)
-    wait = pd.to_numeric(audited["wait_time"], errors="coerce") if "wait_time" in audited else pd.Series()
-    audited = audited.assign(wait_time_numeric=wait)
+    if "wait_time_numeric" not in audited:
+        audited["wait_time_numeric"] = pd.Series(pd.NA, index=audited.index, dtype="Float64")
+        audited["wait_time_reported"] = False
+        audited["missing_wait_time"] = True
 
     snapshot_col = "ingested_at_utc" if "ingested_at_utc" in audited.columns else "last_updated_utc"
     aggregations: dict[str, tuple[str, str]] = {
         "rows": ("ride_name", "size"),
+        "wait_time_reported_records": ("wait_time_reported", "sum"),
+        "missing_wait_time_records": ("missing_wait_time", "sum"),
+        "wait_time_reported_rate": ("wait_time_reported", "mean"),
         "avg_wait_min": ("wait_time_numeric", "mean"),
         "median_wait_min": ("wait_time_numeric", "median"),
         "p90_wait_min": ("wait_time_numeric", lambda s: s.quantile(0.90)),
@@ -135,15 +158,17 @@ def ride_coverage_report(df: pd.DataFrame) -> pd.DataFrame:
 
     if snapshot_col in audited.columns:
         aggregations["snapshots"] = (snapshot_col, "nunique")
-    if "is_open" in audited.columns:
-        audited["is_open_bool"] = audited["is_open"].astype(str).str.lower().isin(["true", "1", "yes"])
+    if "is_open_bool" in audited.columns:
         aggregations["open_rate"] = ("is_open_bool", "mean")
     if "audit_date_local" in audited.columns:
         aggregations["days_seen"] = ("audit_date_local", "nunique")
 
     report = audited.groupby("ride_name", as_index=False).agg(**aggregations)
-    sort_cols = [col for col in ["p90_wait_min", "avg_wait_min", "rows"] if col in report.columns]
-    return report.sort_values(sort_cols, ascending=False).reset_index(drop=True)
+    for column in ["wait_time_reported_rate", "open_rate"]:
+        if column in report.columns:
+            report[column] = report[column].round(3)
+    sort_cols = [col for col in ["wait_time_reported_rate", "p90_wait_min", "avg_wait_min", "rows"] if col in report.columns]
+    return report.sort_values(sort_cols, ascending=[True, False, False, False][: len(sort_cols)]).reset_index(drop=True)
 
 
 def hourly_coverage_report(df: pd.DataFrame) -> pd.DataFrame:
@@ -163,8 +188,8 @@ def hourly_coverage_report(df: pd.DataFrame) -> pd.DataFrame:
         aggregations["snapshots"] = (snapshot_col, "nunique")
     if "ride_name" in audited.columns:
         aggregations["attractions"] = ("ride_name", "nunique")
-    if "wait_time" in audited.columns:
-        audited["wait_time_numeric"] = pd.to_numeric(audited["wait_time"], errors="coerce")
+    if "wait_time_numeric" in audited.columns:
+        aggregations["reported_wait_records"] = ("wait_time_numeric", "count")
         aggregations["avg_wait_min"] = ("wait_time_numeric", "mean")
 
     return (

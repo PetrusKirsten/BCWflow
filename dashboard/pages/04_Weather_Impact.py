@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import plotly.express as px
 import streamlit as st
 
 from parkflow.analysis.eda import build_weather_summary, prepare_queue_dataset
@@ -50,9 +49,12 @@ if selected_rides:
 if only_open:
     plot_df = plot_df[plot_df["is_open_bool"].fillna(False)]
 
+records_before_queue_filter = len(plot_df)
+plot_df = plot_df[plot_df["wait_time_reported"]]
+
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Rows used", f"{len(plot_df):,}")
-col2.metric("Weather fields", f"{len(weather_cols):,}")
+col1.metric("Queue records used", f"{len(plot_df):,}")
+col2.metric("Excluded no-wait records", f"{records_before_queue_filter - len(plot_df):,}")
 col3.metric("Mean temperature", "—" if "temperature_2m" not in plot_df or plot_df["temperature_2m"].dropna().empty else f"{plot_df['temperature_2m'].mean():.1f} °C")
 col4.metric("Mean precipitation", "—" if "precipitation" not in plot_df or plot_df["precipitation"].dropna().empty else f"{plot_df['precipitation'].mean():.2f} mm")
 
@@ -62,18 +64,18 @@ if len(plot_df) < 100:
     )
 
 st.subheader("Weather buckets")
-st.plotly_chart(plot_weather_wait_comparison(plot_df), width='stretch')
+st.plotly_chart(plot_weather_wait_comparison(plot_df), width="stretch")
 
 st.subheader("Temperature scatter")
-st.plotly_chart(plot_temperature_vs_wait(plot_df), width='stretch')
+st.plotly_chart(plot_temperature_vs_wait(plot_df), width="stretch")
 
 st.subheader("Summary table")
-weather_summary = build_weather_summary(plot_df, only_open=False)
+weather_summary = build_weather_summary(plot_df, only_open=False, require_wait_time=True)
 if weather_summary.empty:
     st.info("No weather summary could be generated yet.")
 else:
-    st.dataframe(weather_summary, width='stretch', hide_index=True)
+    st.dataframe(weather_summary, width="stretch", hide_index=True)
 
 with st.expander("Weather columns preview"):
     preview_cols = [col for col in ["analysis_timestamp_local", "ride_name", "wait_time", *weather_cols] if col in plot_df.columns]
-    st.dataframe(plot_df[preview_cols].head(250), width='stretch', hide_index=True)
+    st.dataframe(plot_df[preview_cols].head(250), width="stretch", hide_index=True)
