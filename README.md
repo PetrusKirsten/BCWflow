@@ -1,48 +1,106 @@
-# ParkFlow Analytics
+# 🎢 ParkFlow Analytics
 
-Queue time, visitor flow and weather intelligence for theme park operations.
+**Queue time, visitor flow and weather intelligence for theme park operations.**
 
-This project turns a real theme park visit into a data science case study: how can public/proxy data help us understand queues, peak hours, attraction pressure, weather effects and operational bottlenecks?
+ParkFlow Analytics is an independent data science portfolio project inspired by a real visit to **Beto Carrero World**, in Penha/SC, Brazil. The goal is to transform a common visitor experience — queues, peak hours, crowded attractions and weather uncertainty — into a reproducible case study in operational intelligence.
 
-> Case study: Beto Carrero World. This is an independent portfolio project and is not affiliated with, sponsored by, or endorsed by Beto Carrero World.
+> This project is not affiliated with, sponsored by, or endorsed by Beto Carrero World. Queue-time data is treated as public/proxy data and must be interpreted with care.
 
-## Project goals
+---
 
-- Collect public/proxy queue-time data.
-- Combine queue records with weather and calendar features.
-- Explore operational patterns: attractions, hours, weekdays, weekends and weather.
-- Build a simple, interpretable wait-time prediction model.
-- Present the results in a narrative Streamlit dashboard.
+## 1. Why this project exists
 
-## Data sources
+Theme parks are rich operational systems. A visitor sees only the visible symptoms: long lines, closed rides, crowded shows, weather changes and uneven demand across attractions.
 
-Initial sources:
+A data scientist can frame those symptoms as measurable questions:
 
-- Queue-Times public API for live wait times.
-- Queue-Times public pages for aggregated crowd/statistical context.
-- Open-Meteo Historical Weather API for weather variables.
-- Calendar features generated locally; holidays can be added later.
+- Which attractions concentrate the highest queue pressure?
+- At what time of day do waits tend to peak?
+- Which records are useful queue signals and which ones are shows/photo spots/non-queue experiences?
+- How much data coverage do we actually have before making conclusions?
+- Can weather and calendar features help explain or predict wait times?
+- How can imperfect public data still support a transparent operational analysis?
 
-## Repository structure
+The project is designed to show not only dashboards, but also **data acquisition, data quality, feature engineering, exploratory analysis, modeling readiness and documentation discipline**.
+
+---
+
+## 2. Project status
+
+Current version: **EDA-ready MVP**
+
+Already implemented:
+
+- Live queue-time snapshot collection.
+- Local historical dataset built from repeated snapshots.
+- Data quality and coverage audit.
+- Operating-hours guard to avoid treating after-hours records as real zero-minute waits.
+- Attraction classification policy for shows, photo spots and non-queue experiences.
+- Weather data integration.
+- Exploratory dashboard in Streamlit.
+- Historical aggregate context collector.
+
+Next planned steps:
+
+- Collect more snapshots over multiple days.
+- Stabilize EDA insights.
+- Add a simple baseline wait-time model.
+- Compare baseline vs machine learning model.
+- Add model interpretation and portfolio screenshots.
+
+---
+
+## 3. Data sources
+
+| Layer | Source | Purpose | Notes |
+|---|---|---|---|
+| Queue snapshots | Queue-Times public API | Live wait-time records by attraction | Main row-level dataset; collected incrementally |
+| Historical context | Queue-Times public stats/calendar pages | Aggregate context by ride, month, weekday and day | Not row-level queue history |
+| Weather | Open-Meteo Historical Weather API | Temperature, precipitation and related variables | Joined by local date/hour |
+| Calendar | Local feature engineering | Hour, day of week, weekend, seasonality | Can later include holidays/events |
+
+Important interpretation rule:
+
+> Row-level queue snapshots are the main dataset for EDA and modeling. Historical aggregate pages are useful context, but they are not treated as raw hourly wait-time observations.
+
+---
+
+## 4. Repository structure
 
 ```text
 parkflow-analytics/
   data/
-    raw/
-    interim/
-    processed/
+    raw/                  # raw snapshots and raw public context
+    interim/              # optional intermediate datasets
+    processed/            # processed analytical tables
   notebooks/
+    01_data_audit.ipynb
+    02_exploratory_analysis.ipynb
   src/parkflow/
-    data/
-    features/
-    visualization/
-    models/
+    analysis/             # reusable EDA logic
+    data/                 # collectors and dataset builders
+    features/             # calendar/time features
+    models/               # modeling scripts
+    visualization/        # reusable Plotly figures
   dashboard/
+    app.py
+    pages/
   reports/
+    figures/
+    model_metrics/
   docs/
+    collection_plan.md
+    wait_time_policy.md
+    operating_hours_policy.md
+    historical_data_strategy.md
+    attraction_classification_policy.md
 ```
 
-## Quick start
+---
+
+## 5. Quick start
+
+Create an environment and install the project:
 
 ```bash
 python -m venv .venv
@@ -56,16 +114,16 @@ Collect one live queue-time snapshot:
 python -m parkflow.data.collect_queue_times
 ```
 
-Collect aggregated historical context tables, when permitted:
-
-```bash
-python -m parkflow.data.historical_context
-```
-
-Build a processed snapshot table from all raw snapshots:
+Build the processed queue dataset:
 
 ```bash
 python -m parkflow.data.build_queue_times_dataset
+```
+
+Audit the current dataset:
+
+```bash
+python -m parkflow.data.audit_processed_data
 ```
 
 Run the dashboard:
@@ -74,88 +132,193 @@ Run the dashboard:
 streamlit run dashboard/app.py
 ```
 
+---
 
-## Current workflow
+## 6. Building local queue history
 
-The project now starts with a small but complete data pipeline:
+The project builds its strongest row-level dataset by collecting repeated live snapshots.
 
-1. collect live queue-time snapshots;
-2. rebuild the processed queue dataset;
-3. audit data coverage and quality;
-4. enrich with weather data;
-5. explore the dashboard.
-
-Collect one live snapshot:
+Recommended command:
 
 ```bash
-python -m parkflow.data.collect_queue_times
+python -m parkflow.data.run_queue_times_collector --interval-minutes 30 --rebuild-after-each-run
 ```
 
-Build the processed queue table:
-
-```bash
-python -m parkflow.data.build_queue_times_dataset
-```
-
-Audit the current processed dataset:
-
-```bash
-python -m parkflow.data.audit_processed_data
-```
-
-Run a continuous collector to build your own local history:
-
-```bash
-python -m parkflow.data.run_queue_times_collector --interval-minutes 30
-```
-
-For a short test run with three snapshots:
+For a short test run:
 
 ```bash
 python -m parkflow.data.run_queue_times_collector --interval-minutes 15 --max-runs 3 --rebuild-after-each-run
 ```
 
-A 15–30 minute interval is recommended to be respectful with public data sources. The raw snapshots are saved under `data/raw/queue_times/`, and the processed table is rebuilt into `data/processed/queue_times.csv`.
+The continuous collector skips snapshots outside the nominal park window by default:
 
-## Exploratory analysis v0
-
-After collecting a few snapshots, build or refresh the processed datasets and open the first EDA layer:
-
-```bash
-python -m parkflow.data.build_queue_times_dataset
-python -m parkflow.data.make_modeling_dataset
-streamlit run dashboard/app.py
+```text
+10:00-20:00 America/Sao_Paulo
 ```
 
-New dashboard pages:
+This avoids a common analytical artifact: after the park closes, queue sources may return closed attractions or 0-minute waits, which should not be interpreted as real visitor demand.
 
-- **Data Coverage** — validates snapshot volume, missing values and attraction coverage.
-- **Attraction Explorer** — compares average, median, p90 and maximum waits by attraction.
-- **Operational Heatmap** — maps attraction × local hour queue pressure.
-- **Weather Impact** — checks whether weather variables are joined and ready for exploratory analysis.
+For debugging only, outside-hours collection can be forced:
 
-The notebook `notebooks/02_exploratory_analysis.ipynb` mirrors the dashboard logic and should be used to write the first portfolio insights. With only a few snapshots, use the charts as pipeline validation rather than stable operational conclusions.
+```bash
+python -m parkflow.data.run_queue_times_collector --interval-minutes 30 --collect-outside-hours
+```
 
-## Wait-time reporting policy
+---
 
-Some attractions may appear without a reported `wait_time`. The project now treats those values as missing/non-reported instead of converting them to zero. Queue-pressure charts exclude them by default, while the **Data Coverage** page keeps them visible through wait-time reporting metrics. See `docs/wait_time_policy.md` for the interpretation rules.
+## 7. Collecting historical context
 
-## Ethics and limitations
+ParkFlow can also collect public aggregate historical context.
 
-- Queue times are treated as proxy data, not official park attendance.
-- Public pages and APIs must be used respectfully, with proper attribution.
-- Raw data from third-party sources should not be redistributed if terms do not allow it.
-- Any scraping-like collection must respect terms of use, robots.txt and rate limits.
-- The project does not claim operational truth about the park; it demonstrates a reproducible analytical workflow.
-- See `docs/collection_plan.md` for the recommended snapshot collection cadence and interpretation rules.
+Example for current-year context:
 
-## Attribution
+```bash
+python -m parkflow.data.historical_context --year 2026 --collect-calendar --start-date 2026-01-01 --end-date 2026-05-21
+```
 
-When using Queue-Times data in the app or dashboard, show the required attribution:
+This attempts to collect:
+
+- all-time aggregate Queue-Times statistics;
+- selected-year aggregate Queue-Times statistics;
+- attendance history;
+- day-level crowd calendar with crowd level and operating hours.
+
+These files are saved under:
+
+```text
+data/processed/historical_context/
+```
+
+They are used for context and documentation, not as substitutes for row-level queue snapshots.
+
+---
+
+## 8. Dashboard pages
+
+The Streamlit dashboard currently contains:
+
+### 📊 Data Coverage
+
+Shows whether the dataset is ready for analysis:
+
+- rows;
+- snapshots;
+- attractions;
+- days covered;
+- missing wait-time values;
+- records collected outside nominal operating hours;
+- wait-time reporting rate by attraction.
+
+### 🎡 Attraction Explorer
+
+Compares attraction-level queue pressure:
+
+- mean wait;
+- median wait;
+- p90 wait;
+- maximum wait;
+- wait-time distribution;
+- time series by attraction.
+
+### 🔥 Operational Heatmap
+
+Maps queue pressure by:
+
+```text
+attraction × local hour
+```
+
+The heatmap uses a semantic scale:
+
+- green: lower wait;
+- yellow/orange: moderate wait;
+- red: higher wait.
+
+### 🌦️ Weather Impact
+
+Explores relationships between queue records and weather variables such as temperature and precipitation.
+
+### 🗓️ Historical Context
+
+Displays aggregate historical/context files collected from public pages.
+
+---
+
+## 9. Wait-time and attraction policies
+
+Some attractions returned by public queue sources are not regular queue-based rides. They may be shows, scheduled presentations, photo spots or non-queue experiences.
+
+ParkFlow therefore separates three cases:
+
+1. **missing wait time** — no value was reported;
+2. **reported zero wait** — source returned `0`;
+3. **positive wait time** — source returned a value above zero.
+
+A reported `0` is not automatically treated as a meaningful queue signal. Queue-pressure charts hide likely shows/photo/non-queue experiences and zero-only attractions by default, while keeping them visible in audit tables.
+
+See:
+
+- `docs/wait_time_policy.md`
+- `docs/attraction_classification_policy.md`
+- `docs/operating_hours_policy.md`
+
+---
+
+## 10. Modeling plan
+
+The modeling layer should come after enough snapshot coverage has been collected.
+
+Planned approach:
+
+1. baseline model: historical mean by attraction/hour;
+2. simple regression model;
+3. tree-based model such as Random Forest;
+4. comparison using MAE, RMSE and R²;
+5. error analysis by attraction and hour.
+
+The goal is not to build an artificially complex model. The goal is to build an interpretable forecasting workflow and document limitations clearly.
+
+---
+
+## 11. Ethics and limitations
+
+This project is intentionally conservative about claims.
+
+Limitations:
+
+- Queue-time data is public/proxy data, not official attendance.
+- Public sources may change structure, availability or terms.
+- A small number of snapshots is useful for pipeline validation, not final conclusions.
+- Weather correlations are exploratory and should not be interpreted as causal without stronger design.
+- Historical aggregate context is not the same as row-level queue history.
+- The project does not represent an official partnership with the park.
+
+Data-use principles:
+
+- keep attribution visible;
+- avoid aggressive scraping;
+- preserve raw data for audit;
+- document assumptions;
+- do not overclaim insights from limited coverage.
+
+Queue-Times attribution:
 
 > Powered by Queue-Times.com
 
+---
 
-## Attraction classification policy
+## 12. Portfolio positioning
 
-The project keeps all attractions returned by Queue-Times, but queue-pressure charts do not treat every record as a regular ride queue. Likely shows/photo spots/non-queue experiences and attractions that only report 0-minute waits in the current sample are hidden from pressure visuals by default. They remain available in Data Coverage and audit tables. See `docs/attraction_classification_policy.md` for details.
+This project demonstrates:
+
+- data engineering with public/proxy data;
+- robust data cleaning and feature engineering;
+- explicit data quality auditing;
+- exploratory analysis and operational visualization;
+- responsible treatment of missing/ambiguous records;
+- dashboard development with Streamlit;
+- a clear path toward predictive modeling.
+
+The central portfolio message is:
+
+> I transformed a real visitor experience into a reproducible operational intelligence case study using data science, visualization and careful documentation.

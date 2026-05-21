@@ -46,6 +46,11 @@ with st.sidebar:
         help="Leave empty to include all attractions before the queue-pressure filters are applied.",
     )
     only_open = st.checkbox("Only open attraction records", value=True)
+    only_operating_hours = st.checkbox(
+        "Only nominal operating hours",
+        value=True,
+        help="Recommended. Excludes snapshots collected outside the nominal 10:00-20:00 park window from queue-pressure charts.",
+    )
     require_wait_time = st.checkbox(
         "Only records with reported wait time",
         value=True,
@@ -69,6 +74,8 @@ if selected_rides:
     base = base[base["ride_name"].isin(selected_rides)]
 if only_open:
     base = base[base["is_open_bool"].fillna(False)]
+if only_operating_hours and "is_within_nominal_operating_hours" in base.columns:
+    base = base[base["is_within_nominal_operating_hours"].astype("boolean").fillna(False)]
 
 records_before_wait_filter = len(base)
 if require_wait_time:
@@ -82,6 +89,7 @@ pressure_df = filter_queue_pressure_records(
     min_wait_time=None,
     include_zero_only_attractions=include_zero_only_attractions,
     exclude_non_queue_candidates=exclude_non_queue_candidates,
+    only_operating_hours=False,
 )
 summary = build_attraction_summary(
     pressure_df,
@@ -89,6 +97,7 @@ summary = build_attraction_summary(
     require_wait_time=False,
     include_zero_only_attractions=True,
     exclude_non_queue_candidates=False,
+    only_operating_hours=False,
 )
 availability = build_wait_time_availability(df)
 no_wait_current = availability[availability["wait_time_reported_rate"].fillna(0) == 0] if not availability.empty else availability
@@ -160,6 +169,7 @@ with left:
             top_n=top_n,
             include_zero_only_attractions=True,
             exclude_non_queue_candidates=False,
+            only_operating_hours=False,
         ),
         width="stretch",
     )
@@ -190,6 +200,7 @@ st.plotly_chart(
         rides=selected_rides or None,
         include_zero_only_attractions=True,
         exclude_non_queue_candidates=False,
+        only_operating_hours=False,
     ),
     width="stretch",
 )
@@ -205,6 +216,7 @@ st.plotly_chart(
         ride_name=ride_for_ts,
         include_zero_only_attractions=True,
         exclude_non_queue_candidates=False,
+        only_operating_hours=False,
     ),
     width="stretch",
 )

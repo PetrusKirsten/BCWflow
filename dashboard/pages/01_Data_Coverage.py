@@ -57,15 +57,20 @@ col7.metric(
 )
 col8.metric("P90 wait", "—" if summary["p90_wait_min"] is None else f"{summary['p90_wait_min']:.1f} min")
 
-col9, col10 = st.columns(2)
+col9, col10, col11, col12 = st.columns(4)
 col9.metric(
     "Wait-time reporting rate",
     "—" if summary.get("wait_time_reported_rate") is None else f"{summary['wait_time_reported_rate']:.1%}",
 )
 col10.metric("Records without wait time", f"{summary.get('missing_wait_time_records', 0):,}")
+col11.metric(
+    "Within nominal hours",
+    "—" if summary.get("within_nominal_operating_hours_rate") is None else f"{summary['within_nominal_operating_hours_rate']:.1%}",
+)
+col12.metric("Outside-hours records", f"{summary.get('outside_nominal_operating_hours_records', 0):,}")
 
 st.caption(
-    "Missing wait time is not automatically bad data. Some attractions may be shows, scheduled experiences, or records for which the source does not publish a queue value."
+    "Missing wait time is not automatically bad data. Some attractions may be shows, scheduled experiences, or records for which the source does not publish a queue value. Records collected outside the nominal park window are kept for audit, but queue-pressure charts exclude them by default."
 )
 
 st.divider()

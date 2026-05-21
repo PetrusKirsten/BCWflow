@@ -74,12 +74,14 @@ def plot_average_wait_by_ride(
     top_n: int = 15,
     include_zero_only_attractions: bool = False,
     exclude_non_queue_candidates: bool = True,
+    only_operating_hours: bool = True,
 ):
     summary = build_attraction_summary(
         df,
         only_open=True,
         include_zero_only_attractions=include_zero_only_attractions,
         exclude_non_queue_candidates=exclude_non_queue_candidates,
+        only_operating_hours=only_operating_hours,
     )
     if summary.empty:
         return empty_figure("Average wait by attraction", "No queue-pressure candidates under the current filters")
@@ -116,12 +118,14 @@ def plot_p90_wait_by_ride(
     top_n: int = 15,
     include_zero_only_attractions: bool = False,
     exclude_non_queue_candidates: bool = True,
+    only_operating_hours: bool = True,
 ):
     summary = build_attraction_summary(
         df,
         only_open=True,
         include_zero_only_attractions=include_zero_only_attractions,
         exclude_non_queue_candidates=exclude_non_queue_candidates,
+        only_operating_hours=only_operating_hours,
     )
     if summary.empty:
         return empty_figure("P90 wait by attraction", "No queue-pressure candidates under the current filters")
@@ -150,6 +154,7 @@ def plot_hourly_heatmap(
     top_n: int | None = 20,
     include_zero_only_attractions: bool = False,
     exclude_non_queue_candidates: bool = True,
+    only_operating_hours: bool = True,
 ):
     matrix = build_heatmap_matrix(
         df,
@@ -158,6 +163,7 @@ def plot_hourly_heatmap(
         include_zero_only_attractions=include_zero_only_attractions,
         exclude_non_queue_candidates=exclude_non_queue_candidates,
         top_n=top_n,
+        only_operating_hours=only_operating_hours,
     )
     if matrix.empty:
         return empty_figure("Operational heatmap: attraction × hour", "No queue-pressure candidates under the current filters")
@@ -196,12 +202,14 @@ def plot_hourly_wait_profile(
     df: pd.DataFrame,
     include_zero_only_attractions: bool = False,
     exclude_non_queue_candidates: bool = True,
+    only_operating_hours: bool = True,
 ):
     hourly = build_hourly_summary(
         df,
         only_open=True,
         include_zero_only_attractions=include_zero_only_attractions,
         exclude_non_queue_candidates=exclude_non_queue_candidates,
+        only_operating_hours=only_operating_hours,
     )
     if hourly.empty:
         return empty_figure("Hourly wait profile")
@@ -224,6 +232,7 @@ def plot_wait_distribution(
     rides: list[str] | None = None,
     include_zero_only_attractions: bool = False,
     exclude_non_queue_candidates: bool = True,
+    only_operating_hours: bool = True,
 ):
     data = filter_queue_pressure_records(
         df,
@@ -232,6 +241,7 @@ def plot_wait_distribution(
         require_wait_time=True,
         include_zero_only_attractions=include_zero_only_attractions,
         exclude_non_queue_candidates=exclude_non_queue_candidates,
+        only_operating_hours=only_operating_hours,
     )
     if data.empty:
         return empty_figure("Wait-time distribution")
@@ -255,6 +265,7 @@ def plot_attraction_time_series(
     ride_name: str | None = None,
     include_zero_only_attractions: bool = True,
     exclude_non_queue_candidates: bool = True,
+    only_operating_hours: bool = True,
 ):
     ts = build_time_series_summary(
         df,
@@ -262,6 +273,7 @@ def plot_attraction_time_series(
         only_open=True,
         include_zero_only_attractions=include_zero_only_attractions,
         exclude_non_queue_candidates=exclude_non_queue_candidates,
+        only_operating_hours=only_operating_hours,
     )
     if ts.empty:
         title = f"Wait-time time series: {ride_name}" if ride_name else "Wait-time time series"
@@ -296,12 +308,14 @@ def plot_weather_wait_comparison(
     df: pd.DataFrame,
     include_zero_only_attractions: bool = False,
     exclude_non_queue_candidates: bool = True,
+    only_operating_hours: bool = True,
 ):
     summary = build_weather_summary(
         df,
         only_open=True,
         include_zero_only_attractions=include_zero_only_attractions,
         exclude_non_queue_candidates=exclude_non_queue_candidates,
+        only_operating_hours=only_operating_hours,
     )
     if summary.empty:
         return empty_figure("Weather × wait-time comparison", "Weather fields are not available or coverage is too small")
@@ -324,6 +338,7 @@ def plot_temperature_vs_wait(
     df: pd.DataFrame,
     include_zero_only_attractions: bool = False,
     exclude_non_queue_candidates: bool = True,
+    only_operating_hours: bool = True,
 ):
     data = filter_queue_pressure_records(
         df,
@@ -331,6 +346,7 @@ def plot_temperature_vs_wait(
         require_wait_time=True,
         include_zero_only_attractions=include_zero_only_attractions,
         exclude_non_queue_candidates=exclude_non_queue_candidates,
+        only_operating_hours=only_operating_hours,
     )
     if data.empty or not {"temperature_2m", "wait_time"}.issubset(data.columns) or data["temperature_2m"].notna().sum() < 2:
         return empty_figure("Temperature × wait time", "Temperature data is not available yet")

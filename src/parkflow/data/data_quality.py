@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 from parkflow.config import PARK_TIMEZONE, PROCESSED_DIR
+from parkflow.data.operating_hours import add_operating_hour_columns
 
 
 @dataclass(frozen=True)
@@ -51,6 +52,7 @@ def add_audit_time_columns(df: pd.DataFrame, timezone: str = PARK_TIMEZONE) -> p
         return df.copy()
 
     result = df.copy()
+    result = add_operating_hour_columns(result, timestamp_col="ingested_at_utc")
     for column in ["last_updated_utc", "ingested_at_utc"]:
         if column in result.columns:
             result[column] = pd.to_datetime(result[column], utc=True, errors="coerce")
@@ -96,6 +98,8 @@ def build_coverage_summary(df: pd.DataFrame) -> dict[str, object]:
             "positive_wait_rate": None,
             "wait_time_reported_rate": None,
             "missing_wait_time_records": 0,
+            "within_nominal_operating_hours_rate": None,
+            "outside_nominal_operating_hours_records": 0,
         }
 
     audited = add_audit_time_columns(df)
@@ -109,6 +113,13 @@ def build_coverage_summary(df: pd.DataFrame) -> dict[str, object]:
     open_rate = None
     if "is_open_bool" in audited:
         open_rate = audited["is_open_bool"].mean()
+
+    operating_rate = None
+    outside_operating_records = 0
+    if "is_within_nominal_operating_hours" in audited.columns:
+        operating = audited["is_within_nominal_operating_hours"].astype("boolean")
+        operating_rate = operating.mean()
+        outside_operating_records = int((~operating.fillna(True)).sum())
 
     return {
         "rows": int(len(audited)),
@@ -129,6 +140,8 @@ def build_coverage_summary(df: pd.DataFrame) -> dict[str, object]:
         "positive_wait_rate": float((reported_wait > 0).mean()) if len(reported_wait.dropna()) else None,
         "wait_time_reported_rate": float(wait_reported.mean()) if len(audited) else None,
         "missing_wait_time_records": int((~wait_reported).sum()) if len(audited) else 0,
+        "within_nominal_operating_hours_rate": float(operating_rate) if operating_rate is not None and not pd.isna(operating_rate) else None,
+        "outside_nominal_operating_hours_records": outside_operating_records,
     }
 
 

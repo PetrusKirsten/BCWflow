@@ -1,41 +1,63 @@
 # Data sources
 
-## Queue-Times
+## Queue-Times live API
 
-Use cases:
+Used for row-level queue snapshots. This is the main analytical dataset for EDA and future modeling.
 
-1. Live queue-time snapshots by park.
-2. Public aggregated statistics and crowd calendar pages as context.
+Output path:
 
-Important notes:
+```text
+data/raw/queue_times/
+data/processed/queue_times.csv
+```
 
-- Live API timestamps are in UTC.
-- The free live API requires visible attribution: `Powered by Queue-Times.com`.
-- Detailed historical wait-time access may not be available through the public real-time endpoint. Treat granular history as something to validate before automating.
+Attribution to display in the dashboard:
 
-## Open-Meteo
+```text
+Powered by Queue-Times.com
+```
 
-Use case:
+## Queue-Times public aggregate pages
 
-- Hourly historical weather data for Penha, Santa Catarina, Brazil.
+Used for historical context only:
 
-Suggested variables:
+- all-time statistics;
+- year-specific statistics;
+- attendance history;
+- day-level crowd calendar.
 
-- temperature_2m
-- precipitation
-- relative_humidity_2m
-- wind_speed_10m
-- weather_code
+Output path:
 
-## Calendar features
+```text
+data/processed/historical_context/
+```
 
-Generated locally from timestamps:
+These files should not be treated as row-level queue history.
 
-- date
-- hour
-- day_of_week
-- month
-- is_weekend
-- time_period
+## Open-Meteo historical weather
 
-Holidays can be added via a public Brazilian holidays API in a later iteration.
+Used for weather enrichment. Weather variables are joined to queue snapshots by local date/hour.
+
+Output path:
+
+```text
+data/raw/weather/
+data/processed/weather.csv
+```
+
+## Locally generated calendar features
+
+Generated from timestamps:
+
+- local hour;
+- day of week;
+- weekend flag;
+- month;
+- time period.
+
+## Ethical notes
+
+- Use public sources respectfully and at low frequency.
+- Preserve attribution.
+- Do not publish raw third-party data if terms do not allow redistribution.
+- Document uncertainty and limitations in the README/dashboard.

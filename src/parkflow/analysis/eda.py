@@ -6,10 +6,13 @@ import unicodedata
 import pandas as pd
 
 from parkflow.config import (
+    NOMINAL_CLOSE_HOUR,
+    NOMINAL_OPEN_HOUR,
     PARK_TIMEZONE,
     QUEUE_ANALYSIS_EXCLUDED_ATTRACTIONS,
     QUEUE_ANALYSIS_EXCLUDED_KEYWORDS,
 )
+from parkflow.data.operating_hours import add_operating_hour_columns
 
 
 @dataclass(frozen=True)
@@ -18,6 +21,8 @@ class EDAConfig:
 
     timezone: str = PARK_TIMEZONE
     open_values: tuple[str, ...] = ("true", "1", "yes")
+    nominal_open_hour: int = NOMINAL_OPEN_HOUR
+    nominal_close_hour: int = NOMINAL_CLOSE_HOUR
     scheduled_experience_keywords: tuple[str, ...] = (
         "show",
         "espetaculo",
@@ -122,6 +127,7 @@ def prepare_queue_dataset(df: pd.DataFrame, config: EDAConfig | None = None) -> 
         return df.copy()
 
     out = df.copy()
+    out = add_operating_hour_columns(out, timestamp_col="ingested_at_utc")
 
     if "wait_time" in out.columns:
         out["wait_time"] = pd.to_numeric(out["wait_time"], errors="coerce")
@@ -186,6 +192,11 @@ def prepare_queue_dataset(df: pd.DataFrame, config: EDAConfig | None = None) -> 
     if "time_period" not in out.columns:
         out["time_period"] = out["hour"].apply(_classify_time_period)
 
+    if "is_within_nominal_operating_hours" not in out.columns:
+        out["is_within_nominal_operating_hours"] = pd.NA
+    if "operating_hour_status" not in out.columns:
+        out["operating_hour_status"] = "unknown_collection_time"
+
     out["has_positive_wait"] = out["wait_time_reported"] & out["wait_time"].gt(0)
     out["attraction_record_type"] = out.apply(_classify_record_type, axis=1)
 
@@ -220,6 +231,7 @@ def filter_queue_pressure_records(
     min_wait_time: int | float | None = 0,
     include_zero_only_attractions: bool = False,
     exclude_non_queue_candidates: bool = True,
+    only_operating_hours: bool = True,
 ) -> pd.DataFrame:
     """Return records suitable for queue-pressure charts.
 
@@ -240,6 +252,9 @@ def filter_queue_pressure_records(
 
     if rides:
         out = out[out["ride_name"].isin(rides)]
+    if only_operating_hours and "is_within_nominal_operating_hours" in out.columns:
+        operating = out["is_within_nominal_operating_hours"].astype("boolean")
+        out = out[operating.fillna(False)]
     if only_open and "is_open_bool" in out.columns:
         out = out[out["is_open_bool"].fillna(False)]
     if require_wait_time and "wait_time_reported" in out.columns:
@@ -274,6 +289,7 @@ def filter_queue_data(
         require_wait_time=require_wait_time,
         include_zero_only_attractions=True,
         exclude_non_queue_candidates=False,
+        only_operating_hours=True,
     )
 
 
@@ -325,6 +341,7 @@ def build_attraction_summary(
     require_wait_time: bool = True,
     include_zero_only_attractions: bool = False,
     exclude_non_queue_candidates: bool = True,
+    only_operating_hours: bool = True,
 ) -> pd.DataFrame:
     """Aggregate wait-time diagnostics by attraction.
 
@@ -342,6 +359,7 @@ def build_attraction_summary(
         require_wait_time=require_wait_time,
         include_zero_only_attractions=include_zero_only_attractions,
         exclude_non_queue_candidates=exclude_non_queue_candidates,
+        only_operating_hours=only_operating_hours,
     )
     if data.empty:
         return pd.DataFrame()
@@ -381,6 +399,7 @@ def build_hourly_summary(
     require_wait_time: bool = True,
     include_zero_only_attractions: bool = False,
     exclude_non_queue_candidates: bool = True,
+    only_operating_hours: bool = True,
 ) -> pd.DataFrame:
     """Aggregate wait-time diagnostics by local hour."""
 
@@ -393,6 +412,7 @@ def build_hourly_summary(
         require_wait_time=require_wait_time,
         include_zero_only_attractions=include_zero_only_attractions,
         exclude_non_queue_candidates=exclude_non_queue_candidates,
+        only_operating_hours=only_operating_hours,
     )
     if data.empty or "hour" not in data.columns:
         return pd.DataFrame()
@@ -421,6 +441,7 @@ def build_heatmap_matrix(
     include_zero_only_attractions: bool = False,
     exclude_non_queue_candidates: bool = True,
     top_n: int | None = None,
+    only_operating_hours: bool = True,
 ) -> pd.DataFrame:
     """Return ride × hour matrix for the operational heatmap."""
 
@@ -433,6 +454,7 @@ def build_heatmap_matrix(
         require_wait_time=require_wait_time,
         include_zero_only_attractions=include_zero_only_attractions,
         exclude_non_queue_candidates=exclude_non_queue_candidates,
+        only_operating_hours=only_operating_hours,
     )
     if data.empty or not {"ride_name", "hour", "wait_time"}.issubset(data.columns):
         return pd.DataFrame()
@@ -463,6 +485,7 @@ def build_time_series_summary(
     require_wait_time: bool = True,
     include_zero_only_attractions: bool = True,
     exclude_non_queue_candidates: bool = True,
+    only_operating_hours: bool = True,
 ) -> pd.DataFrame:
     """Create time-series data for a selected attraction or all attractions."""
 
@@ -475,6 +498,7 @@ def build_time_series_summary(
         require_wait_time=require_wait_time,
         include_zero_only_attractions=include_zero_only_attractions,
         exclude_non_queue_candidates=exclude_non_queue_candidates,
+        only_operating_hours=only_operating_hours,
     )
     if ride_name and "ride_name" in data.columns:
         data = data[data["ride_name"] == ride_name]
@@ -504,6 +528,7 @@ def build_weather_summary(
     require_wait_time: bool = True,
     include_zero_only_attractions: bool = False,
     exclude_non_queue_candidates: bool = True,
+    only_operating_hours: bool = True,
 ) -> pd.DataFrame:
     """Summarize exploratory queue patterns by simple weather buckets."""
 
@@ -516,6 +541,7 @@ def build_weather_summary(
         require_wait_time=require_wait_time,
         include_zero_only_attractions=include_zero_only_attractions,
         exclude_non_queue_candidates=exclude_non_queue_candidates,
+        only_operating_hours=only_operating_hours,
     )
     if data.empty or "wait_time" not in data.columns:
         return pd.DataFrame()
@@ -583,6 +609,13 @@ def build_initial_insights(df: pd.DataFrame) -> list[str]:
         insights.append(
             f"Current dataset has only {snapshot_count} snapshot(s); treat every pattern as a pipeline check, not a stable operational conclusion."
         )
+
+    if "is_within_nominal_operating_hours" in data.columns:
+        outside = int((~data["is_within_nominal_operating_hours"].astype("boolean").fillna(True)).sum())
+        if outside:
+            insights.append(
+                f"{outside} record(s) were collected outside the nominal park window and are excluded from queue-pressure charts by default."
+            )
 
     if not availability.empty:
         no_wait = availability[availability["wait_time_reported_rate"].fillna(0) == 0]

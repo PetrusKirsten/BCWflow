@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from parkflow.config import PARK_ID, PROCESSED_DIR
 from parkflow.data.build_queue_times_dataset import build_queue_times_dataset
+from parkflow.data.operating_hours import OperatingHoursPolicy, is_within_nominal_operating_hours, now_local
 from parkflow.data.queue_times import fetch_live_queue_times, flatten_queue_times, save_raw_queue_snapshot
 
 
@@ -45,13 +46,24 @@ def parse_args() -> argparse.Namespace:
         "--max-runs",
         type=int,
         default=None,
-        help="Stop after N successful attempts. Omit to keep running until Ctrl+C.",
+        help="Stop after N successful collections. Omit to keep running until Ctrl+C.",
     )
     parser.add_argument("--timeout", type=int, default=30, help="HTTP timeout in seconds.")
     parser.add_argument(
         "--rebuild-after-each-run",
         action="store_true",
         help="Rebuild data/processed/queue_times.csv after each successful snapshot.",
+    )
+    parser.add_argument(
+        "--collect-outside-hours",
+        action="store_true",
+        help="Collect even when local time is outside the nominal park operating window.",
+    )
+    parser.add_argument(
+        "--max-skips",
+        type=int,
+        default=8,
+        help="Maximum outside-hours skips before stopping when --max-runs is set.",
     )
     return parser.parse_args()
 
@@ -60,22 +72,45 @@ def main() -> None:
     args = parse_args()
     interval_seconds = max(args.interval_minutes * 60, 60)
     runs = 0
+    skips = 0
+    policy = OperatingHoursPolicy()
 
     print("Starting ParkFlow queue-time collector")
     print(f"Park ID: {args.park_id}")
     print(f"Interval: {args.interval_minutes} minutes")
+    if args.collect_outside_hours:
+        print("Operating-hours guard: OFF (--collect-outside-hours enabled)")
+    else:
+        print(f"Operating-hours guard: ON ({policy.label}, local park time)")
     print("Press Ctrl+C to stop.\n")
 
     try:
         while True:
-            try:
-                collect_once(park_id=args.park_id, timeout=args.timeout)
-                runs += 1
-                if args.rebuild_after_each_run:
-                    rebuild_processed_dataset()
-            except Exception as exc:  # noqa: BLE001 - collector should keep running after transient failures
-                now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-                print(f"[{now}] collection failed: {exc!r}")
+            local_now = now_local(policy)
+            inside_hours = is_within_nominal_operating_hours(local_now, policy=policy)
+
+            if not inside_hours and not args.collect_outside_hours:
+                skips += 1
+                print(
+                    f"[{local_now:%Y-%m-%d %H:%M:%S %Z}] outside nominal operating hours "
+                    f"({policy.label}). Skipping snapshot."
+                )
+                if args.max_runs is not None and skips >= args.max_skips:
+                    print(
+                        f"Reached max skips ({args.max_skips}) while waiting for operating hours. "
+                        "Stopping collector."
+                    )
+                    break
+            else:
+                try:
+                    collect_once(park_id=args.park_id, timeout=args.timeout)
+                    runs += 1
+                    skips = 0
+                    if args.rebuild_after_each_run:
+                        rebuild_processed_dataset()
+                except Exception as exc:  # noqa: BLE001 - collector should keep running after transient failures
+                    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+                    print(f"[{now}] collection failed: {exc!r}")
 
             if args.max_runs is not None and runs >= args.max_runs:
                 print(f"Reached max runs ({args.max_runs}). Stopping collector.")

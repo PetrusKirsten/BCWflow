@@ -19,6 +19,12 @@ PARK_LONGITUDE = -48.6264
 QUEUE_TIMES_BASE_URL = "https://queue-times.com"
 OPEN_METEO_ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 
+# Conservative nominal operating-hours window used to avoid interpreting
+# after-hours snapshots as true zero-minute queue pressure. Keep raw data, but
+# filter queue-pressure charts to this window by default.
+NOMINAL_OPEN_HOUR = 10
+NOMINAL_CLOSE_HOUR = 20
+
 # Attraction names that should usually be excluded from queue-pressure charts.
 # They remain in the dataset and in Data Coverage, but they are not treated as
 # regular queue-time attractions by default because they are shows, photo spots,

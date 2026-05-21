@@ -33,6 +33,11 @@ with st.sidebar:
         index=0,
     )
     only_open = st.checkbox("Only open attraction records", value=True)
+    only_operating_hours = st.checkbox(
+        "Only nominal operating hours",
+        value=True,
+        help="Recommended. Excludes snapshots collected outside the nominal 10:00-20:00 park window.",
+    )
     exclude_non_queue_candidates = st.checkbox("Hide likely shows/photo/non-queue experiences", value=True)
     include_zero_only_attractions = st.checkbox("Include zero-only attractions", value=False)
     min_observations = st.number_input("Minimum observations per attraction", min_value=1, value=1, step=1)
@@ -45,6 +50,7 @@ plot_df = filter_queue_pressure_records(
     min_wait_time=None,
     include_zero_only_attractions=include_zero_only_attractions,
     exclude_non_queue_candidates=exclude_non_queue_candidates,
+    only_operating_hours=only_operating_hours,
 )
 if "ride_name" in plot_df.columns:
     counts = plot_df.groupby("ride_name")["wait_time"].count()
@@ -57,6 +63,7 @@ summary = build_hourly_summary(
     require_wait_time=False,
     include_zero_only_attractions=True,
     exclude_non_queue_candidates=False,
+    only_operating_hours=False,
 )
 
 col1, col2, col3, col4 = st.columns(4)
@@ -82,6 +89,7 @@ st.plotly_chart(
         top_n=top_n,
         include_zero_only_attractions=True,
         exclude_non_queue_candidates=False,
+        only_operating_hours=False,
     ),
     width="stretch",
 )
@@ -92,6 +100,7 @@ st.plotly_chart(
         plot_df,
         include_zero_only_attractions=True,
         exclude_non_queue_candidates=False,
+        only_operating_hours=False,
     ),
     width="stretch",
 )
@@ -111,5 +120,6 @@ with st.expander("Heatmap matrix"):
         include_zero_only_attractions=True,
         exclude_non_queue_candidates=False,
         top_n=top_n,
+        only_operating_hours=False,
     )
     st.dataframe(matrix, width="stretch")

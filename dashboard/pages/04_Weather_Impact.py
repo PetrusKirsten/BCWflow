@@ -29,6 +29,11 @@ with st.sidebar:
     st.header("Filters")
     only_open = st.checkbox("Only open attraction records", value=True)
     exclude_non_queue_candidates = st.checkbox("Hide likely shows/photo/non-queue experiences", value=True)
+    only_operating_hours = st.checkbox(
+        "Only nominal operating hours",
+        value=True,
+        help="Recommended. Excludes after-hours snapshots from exploratory weather comparisons.",
+    )
     include_zero_only_attractions = st.checkbox("Include zero-only attractions", value=False)
 
 plot_df = filter_queue_pressure_records(
@@ -37,6 +42,7 @@ plot_df = filter_queue_pressure_records(
     require_wait_time=True,
     include_zero_only_attractions=include_zero_only_attractions,
     exclude_non_queue_candidates=exclude_non_queue_candidates,
+    only_operating_hours=only_operating_hours,
 )
 
 weather_cols = [col for col in ["temperature_2m", "precipitation", "rain_flag"] if col in plot_df.columns]
