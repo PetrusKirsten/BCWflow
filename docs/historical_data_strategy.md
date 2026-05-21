@@ -31,6 +31,33 @@ This tries to collect:
 - attendance history;
 - day-level crowd calendar with crowd level and operating hours.
 
+
+## What the historical command actually does
+
+The historical command does **not** download a hidden row-level queue history. It reads public HTML pages and converts what can be parsed into small CSV files. This is why the source format is HTML, not JSON.
+
+Recommended commands:
+
+```bash
+# Aggregate context: all-time stats, selected-year stats and attendance history
+python -m parkflow.data.historical_context --year 2026
+
+# Day-level context only: crowd level and operating hours by date
+python -m parkflow.data.historical_context --calendar-only --start-date 2026-01-01 --end-date 2026-05-21
+
+# Full context: aggregate pages + day-level calendar
+python -m parkflow.data.historical_context --year 2026 --collect-calendar --start-date 2026-01-01 --end-date 2026-05-21
+```
+
+Expected outputs:
+
+```text
+data/raw/historical_context/*.html
+data/processed/historical_context/*.csv
+```
+
+If a giant HTML page appears in the terminal, that is not useful output. It usually means a parser/warning/error exposed the raw webpage instead of the summary. The collector now wraps literal HTML safely, saves raw pages to disk, and prints only compact status messages.
+
 ## Interpretation
 
 Use historical context to answer questions such as:
