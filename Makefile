@@ -18,3 +18,9 @@ dashboard:
 
 test:
 	pytest
+
+collect-queues-loop:
+	python -m parkflow.data.run_queue_times_collector --interval-minutes 30
+
+audit-data:
+	python -m parkflow.data.audit_processed_data

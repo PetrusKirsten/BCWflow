@@ -74,6 +74,49 @@ Run the dashboard:
 streamlit run dashboard/app.py
 ```
 
+
+## Current workflow
+
+The project now starts with a small but complete data pipeline:
+
+1. collect live queue-time snapshots;
+2. rebuild the processed queue dataset;
+3. audit data coverage and quality;
+4. enrich with weather data;
+5. explore the dashboard.
+
+Collect one live snapshot:
+
+```bash
+python -m parkflow.data.collect_queue_times
+```
+
+Build the processed queue table:
+
+```bash
+python -m parkflow.data.build_queue_times_dataset
+```
+
+Audit the current processed dataset:
+
+```bash
+python -m parkflow.data.audit_processed_data
+```
+
+Run a continuous collector to build your own local history:
+
+```bash
+python -m parkflow.data.run_queue_times_collector --interval-minutes 30
+```
+
+For a short test run with three snapshots:
+
+```bash
+python -m parkflow.data.run_queue_times_collector --interval-minutes 15 --max-runs 3 --rebuild-after-each-run
+```
+
+A 15–30 minute interval is recommended to be respectful with public data sources. The raw snapshots are saved under `data/raw/queue_times/`, and the processed table is rebuilt into `data/processed/queue_times.csv`.
+
 ## Ethics and limitations
 
 - Queue times are treated as proxy data, not official park attendance.
@@ -81,6 +124,7 @@ streamlit run dashboard/app.py
 - Raw data from third-party sources should not be redistributed if terms do not allow it.
 - Any scraping-like collection must respect terms of use, robots.txt and rate limits.
 - The project does not claim operational truth about the park; it demonstrates a reproducible analytical workflow.
+- See `docs/collection_plan.md` for the recommended snapshot collection cadence and interpretation rules.
 
 ## Attribution
 
