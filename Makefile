@@ -24,3 +24,12 @@ collect-queues-loop:
 
 audit-data:
 	python -m parkflow.data.audit_processed_data
+
+
+eda-notebook:
+	jupyter lab notebooks/02_exploratory_analysis.ipynb
+
+eda-refresh:
+	python -m parkflow.data.build_queue_times_dataset
+	python -m parkflow.data.make_modeling_dataset
+	python -m parkflow.data.audit_processed_data

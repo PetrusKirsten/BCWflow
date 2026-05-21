@@ -76,7 +76,7 @@ else:
         title="Collected snapshots by day",
         labels={"audit_date_local": "Local date", "snapshots": "Snapshots"},
     )
-    st.plotly_chart(fig_daily, use_container_width=True)
+    st.plotly_chart(fig_daily, width='stretch')
 
     heat = hourly.pivot_table(
         index="audit_date_local", columns="audit_hour_local", values="snapshots", aggfunc="sum", fill_value=0
@@ -87,7 +87,7 @@ else:
         title="Snapshot coverage heatmap: local date × hour",
         labels={"x": "Local hour", "y": "Local date", "color": "Snapshots"},
     )
-    st.plotly_chart(fig_heat, use_container_width=True)
+    st.plotly_chart(fig_heat, width='stretch')
 
 st.subheader("Attraction coverage")
 ride_report = ride_coverage_report(df)
@@ -104,21 +104,21 @@ else:
             title="Rows collected by attraction",
             labels={"rows": "Rows", "ride_name": "Attraction"},
         )
-        st.plotly_chart(fig_rides, use_container_width=True)
+        st.plotly_chart(fig_rides, width='stretch')
     with chart_cols[1]:
         display_cols = [
             col
             for col in ["ride_name", "rows", "snapshots", "days_seen", "open_rate", "avg_wait_min", "p90_wait_min"]
             if col in ride_report.columns
         ]
-        st.dataframe(ride_report[display_cols], use_container_width=True, hide_index=True)
+        st.dataframe(ride_report[display_cols], width='stretch', hide_index=True)
 
 st.subheader("Missing values")
 miss = missingness_report(df)
 if miss.empty:
     st.success("No columns to inspect.")
 else:
-    st.dataframe(miss, use_container_width=True, hide_index=True)
+    st.dataframe(miss, width='stretch', hide_index=True)
 
 with st.expander("Dataset preview"):
-    st.dataframe(df.head(200), use_container_width=True)
+    st.dataframe(df.head(200), width='stretch')

@@ -117,6 +117,25 @@ python -m parkflow.data.run_queue_times_collector --interval-minutes 15 --max-ru
 
 A 15–30 minute interval is recommended to be respectful with public data sources. The raw snapshots are saved under `data/raw/queue_times/`, and the processed table is rebuilt into `data/processed/queue_times.csv`.
 
+## Exploratory analysis v0
+
+After collecting a few snapshots, build or refresh the processed datasets and open the first EDA layer:
+
+```bash
+python -m parkflow.data.build_queue_times_dataset
+python -m parkflow.data.make_modeling_dataset
+streamlit run dashboard/app.py
+```
+
+New dashboard pages:
+
+- **Data Coverage** — validates snapshot volume, missing values and attraction coverage.
+- **Attraction Explorer** — compares average, median, p90 and maximum waits by attraction.
+- **Operational Heatmap** — maps attraction × local hour queue pressure.
+- **Weather Impact** — checks whether weather variables are joined and ready for exploratory analysis.
+
+The notebook `notebooks/02_exploratory_analysis.ipynb` mirrors the dashboard logic and should be used to write the first portfolio insights. With only a few snapshots, use the charts as pipeline validation rather than stable operational conclusions.
+
 ## Ethics and limitations
 
 - Queue times are treated as proxy data, not official park attendance.
