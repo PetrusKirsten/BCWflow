@@ -18,3 +18,39 @@ PARK_LONGITUDE = -48.6264
 
 QUEUE_TIMES_BASE_URL = "https://queue-times.com"
 OPEN_METEO_ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
+
+# Attraction names that should usually be excluded from queue-pressure charts.
+# They remain in the dataset and in Data Coverage, but they are not treated as
+# regular queue-time attractions by default because they are shows, photo spots,
+# walkthroughs, scheduled experiences or non-ride operational records.
+QUEUE_ANALYSIS_EXCLUDED_ATTRACTIONS = frozenset(
+    {
+        "Excalibur",
+        "Hot Wheels Epic Show",
+        "Madagascar Circus Show",
+        "O Sonho do Cowboy!",
+        "No Ritmo de Trolls",
+        "Fotos com Trolls",
+        "Fotos com a Turma do Madagascar",
+        "Fotos com Betinho e Lully",
+        "Esculturas Romero Britto",
+        "Casa do Projeto Tamar",
+    }
+)
+
+# Keyword fallback used when a new attraction appears and is clearly not a
+# normal queue-time ride. Keep this conservative to avoid excluding valid rides.
+QUEUE_ANALYSIS_EXCLUDED_KEYWORDS = (
+    "show",
+    "espetaculo",
+    "espetáculo",
+    "apresentacao",
+    "apresentação",
+    "fotos",
+    "foto",
+    "escultura",
+    "teatro",
+    "circo",
+    "circus",
+)
+

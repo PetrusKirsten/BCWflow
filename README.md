@@ -154,3 +154,8 @@ Some attractions may appear without a reported `wait_time`. The project now trea
 When using Queue-Times data in the app or dashboard, show the required attribution:
 
 > Powered by Queue-Times.com
+
+
+## Attraction classification policy
+
+The project keeps all attractions returned by Queue-Times, but queue-pressure charts do not treat every record as a regular ride queue. Likely shows/photo spots/non-queue experiences and attractions that only report 0-minute waits in the current sample are hidden from pressure visuals by default. They remain available in Data Coverage and audit tables. See `docs/attraction_classification_policy.md` for details.

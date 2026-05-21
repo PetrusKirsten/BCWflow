@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from parkflow.analysis.eda import prepare_queue_dataset
+from parkflow.analysis.eda import filter_queue_pressure_records, prepare_queue_dataset
 from parkflow.visualization.plots import plot_average_wait_by_ride, plot_hourly_heatmap
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -29,23 +29,25 @@ if not path.exists():
 
 df = prepare_queue_dataset(pd.read_csv(path))
 reported = df[df["wait_time_reported"]] if "wait_time_reported" in df.columns else df
+pressure = filter_queue_pressure_records(df)
 
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Rows", f"{len(df):,}")
 col2.metric("Attractions", df["ride_name"].nunique() if "ride_name" in df else 0)
 col3.metric("Reported wait records", f"{len(reported):,}")
-col4.metric("Average wait", f"{reported['wait_time'].mean():.1f} min" if not reported.empty else "—")
+col4.metric("Queue-pressure records", f"{len(pressure):,}")
 
 st.caption(
-    "Queue-pressure charts exclude records without a reported wait time. Those attractions still appear in Data Coverage."
+    "Queue-pressure charts hide likely shows/photo/non-queue experiences and zero-only attractions by default. "
+    "Nothing is deleted; use Data Coverage to audit the full dataset."
 )
 
 st.subheader("Average wait by attraction")
-st.plotly_chart(plot_average_wait_by_ride(df), width="stretch")
+st.plotly_chart(plot_average_wait_by_ride(df, top_n=15), width="stretch")
 
 st.subheader("Operational heatmap")
 if "hour" in df.columns:
-    st.plotly_chart(plot_hourly_heatmap(df), width="stretch")
+    st.plotly_chart(plot_hourly_heatmap(df, top_n=20), width="stretch")
 else:
     st.warning("Run the feature builder/dataset builder to create hour-level features.")
 

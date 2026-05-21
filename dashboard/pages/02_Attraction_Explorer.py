@@ -8,6 +8,7 @@ from parkflow.analysis.eda import (
     build_attraction_summary,
     build_initial_insights,
     build_wait_time_availability,
+    filter_queue_pressure_records,
     prepare_queue_dataset,
 )
 from parkflow.data.data_quality import load_best_available_dataset
@@ -41,8 +42,8 @@ with st.sidebar:
     selected_rides = st.multiselect(
         "Attractions",
         rides,
-        default=rides[: min(8, len(rides))],
-        help="Keep this smaller when the dataset grows to make plots easier to read.",
+        default=[],
+        help="Leave empty to include all attractions before the queue-pressure filters are applied.",
     )
     only_open = st.checkbox("Only open attraction records", value=True)
     require_wait_time = st.checkbox(
@@ -50,40 +51,96 @@ with st.sidebar:
         value=True,
         help="Recommended for queue-pressure analysis. Turn off only when auditing missing/non-applicable values.",
     )
+    exclude_non_queue_candidates = st.checkbox(
+        "Hide likely shows/photo/non-queue experiences",
+        value=True,
+        help="Uses a conservative configured list plus keywords such as show/fotos/circo.",
+    )
+    include_zero_only_attractions = st.checkbox(
+        "Include zero-only attractions",
+        value=False,
+        help="Off by default to avoid clutter while the dataset is still small. Turn on to audit attractions that only report 0 min so far.",
+    )
     min_wait = st.slider("Minimum wait time", min_value=0, max_value=120, value=0, step=5)
+    top_n = st.slider("Top attractions shown", min_value=5, max_value=30, value=15, step=1)
 
-filtered = df.copy()
+base = df.copy()
 if selected_rides:
-    filtered = filtered[filtered["ride_name"].isin(selected_rides)]
+    base = base[base["ride_name"].isin(selected_rides)]
 if only_open:
-    filtered = filtered[filtered["is_open_bool"].fillna(False)]
+    base = base[base["is_open_bool"].fillna(False)]
 
-records_before_wait_filter = len(filtered)
+records_before_wait_filter = len(base)
 if require_wait_time:
-    filtered = filtered[filtered["wait_time_reported"]]
-filtered = filtered[filtered["wait_time"] >= min_wait]
+    base = base[base["wait_time_reported"]]
+base = base[base["wait_time"] >= min_wait]
 
-summary = build_attraction_summary(filtered, only_open=False, require_wait_time=require_wait_time)
+pressure_df = filter_queue_pressure_records(
+    base,
+    only_open=False,
+    require_wait_time=False,
+    min_wait_time=None,
+    include_zero_only_attractions=include_zero_only_attractions,
+    exclude_non_queue_candidates=exclude_non_queue_candidates,
+)
+summary = build_attraction_summary(
+    pressure_df,
+    only_open=False,
+    require_wait_time=False,
+    include_zero_only_attractions=True,
+    exclude_non_queue_candidates=False,
+)
 availability = build_wait_time_availability(df)
 no_wait_current = availability[availability["wait_time_reported_rate"].fillna(0) == 0] if not availability.empty else availability
+zero_only_current = availability[availability["zero_only_reported_wait"].fillna(False)] if not availability.empty else availability
+non_queue_current = availability[availability["queue_pressure_exclusion_reason"] != "included_by_default"] if not availability.empty else availability
 
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Filtered rows", f"{len(filtered):,}")
-col2.metric("Attractions", f"{filtered['ride_name'].nunique() if 'ride_name' in filtered else 0:,}")
-col3.metric("Reported wait records", f"{filtered['wait_time_reported'].sum():,}" if "wait_time_reported" in filtered else "—")
-col4.metric("Mean wait", "—" if filtered.empty else f"{filtered['wait_time'].mean():.1f} min")
+col1.metric("Filtered rows", f"{len(base):,}")
+col2.metric("Queue-pressure rows", f"{len(pressure_df):,}")
+col3.metric("Queue attractions", f"{pressure_df['ride_name'].nunique() if 'ride_name' in pressure_df else 0:,}")
+col4.metric("Mean wait", "—" if pressure_df.empty else f"{pressure_df['wait_time'].mean():.1f} min")
 
-if require_wait_time and records_before_wait_filter > len(filtered):
+if require_wait_time and records_before_wait_filter > len(base):
     st.caption(
-        f"Excluded {records_before_wait_filter - len(filtered):,} record(s) without reported wait time from queue-pressure charts."
+        f"Excluded {records_before_wait_filter - len(base):,} record(s) without reported wait time from queue-pressure charts."
     )
 
-if no_wait_current is not None and not no_wait_current.empty:
-    with st.expander("Attractions currently without reported wait-time values"):
-        st.write(
-            "These are kept in the dataset for coverage, but excluded from queue rankings by default. They may be shows, scheduled experiences or attractions whose wait times are not published by the source."
-        )
+st.caption(
+    "By default, this page focuses on queue-pressure candidates: reported wait-time records, excluding likely non-queue experiences and attractions that only show 0 min in the current sample."
+)
+
+with st.expander("Audit: why some attractions are hidden from pressure charts"):
+    st.write(
+        "Hidden attractions are not removed from the dataset. They are separated because a reported 0 can mean either a real empty queue or a non-queue/scheduled experience. With few snapshots, hiding zero-only attractions keeps the charts readable."
+    )
+    if no_wait_current is not None and not no_wait_current.empty:
+        st.write("**No reported wait-time values yet**")
         st.dataframe(no_wait_current, width="stretch", hide_index=True)
+    if zero_only_current is not None and not zero_only_current.empty:
+        st.write("**Only 0-minute wait values observed so far**")
+        cols = [
+            col
+            for col in [
+                "ride_name",
+                "records",
+                "wait_time_reported_records",
+                "positive_wait_records",
+                "max_reported_wait",
+                "open_rate",
+                "queue_pressure_exclusion_reason",
+            ]
+            if col in zero_only_current.columns
+        ]
+        st.dataframe(zero_only_current[cols], width="stretch", hide_index=True)
+    if non_queue_current is not None and not non_queue_current.empty:
+        st.write("**Configured/keyword non-queue candidates**")
+        cols = [
+            col
+            for col in ["ride_name", "records", "queue_pressure_exclusion_reason", "mode_hint", "max_reported_wait"]
+            if col in non_queue_current.columns
+        ]
+        st.dataframe(non_queue_current[cols], width="stretch", hide_index=True)
 
 if len(df) < 100:
     st.warning(
@@ -95,9 +152,17 @@ for insight in build_initial_insights(df):
     st.write(f"- {insight}")
 
 st.subheader("Attraction ranking")
-left, right = st.columns([1, 1])
+left, right = st.columns([1.2, 1])
 with left:
-    st.plotly_chart(plot_p90_wait_by_ride(filtered, top_n=20), width="stretch")
+    st.plotly_chart(
+        plot_p90_wait_by_ride(
+            pressure_df,
+            top_n=top_n,
+            include_zero_only_attractions=True,
+            exclude_non_queue_candidates=False,
+        ),
+        width="stretch",
+    )
 with right:
     display_cols = [
         col
@@ -114,18 +179,35 @@ with right:
         if col in summary.columns
     ]
     if summary.empty:
-        st.info("No reported wait-time records in the current filter.")
+        st.info("No queue-pressure records in the current filter.")
     else:
         st.dataframe(summary[display_cols], width="stretch", hide_index=True)
 
 st.subheader("Distribution")
-st.plotly_chart(plot_wait_distribution(filtered, rides=selected_rides), width="stretch")
+st.plotly_chart(
+    plot_wait_distribution(
+        pressure_df,
+        rides=selected_rides or None,
+        include_zero_only_attractions=True,
+        exclude_non_queue_candidates=False,
+    ),
+    width="stretch",
+)
 
 st.subheader("Time series")
+ride_options = sorted(pressure_df["ride_name"].dropna().unique().tolist()) if "ride_name" in pressure_df else []
 ride_for_ts = st.selectbox(
-    "Select one attraction", options=[None] + rides, format_func=lambda x: "All selected attractions" if x is None else x
+    "Select one attraction", options=[None] + ride_options, format_func=lambda x: "All queue-pressure attractions" if x is None else x
 )
-st.plotly_chart(plot_attraction_time_series(filtered, ride_name=ride_for_ts), width="stretch")
+st.plotly_chart(
+    plot_attraction_time_series(
+        pressure_df,
+        ride_name=ride_for_ts,
+        include_zero_only_attractions=True,
+        exclude_non_queue_candidates=False,
+    ),
+    width="stretch",
+)
 
 with st.expander("Filtered data preview"):
-    st.dataframe(filtered.head(250), width="stretch")
+    st.dataframe(pressure_df.head(250), width="stretch")

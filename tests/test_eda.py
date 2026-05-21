@@ -7,6 +7,7 @@ from parkflow.analysis.eda import (
     build_heatmap_matrix,
     build_hourly_summary,
     build_wait_time_availability,
+    filter_queue_pressure_records,
     prepare_queue_dataset,
 )
 
@@ -14,13 +15,15 @@ from parkflow.analysis.eda import (
 def sample_queue_df() -> pd.DataFrame:
     return pd.DataFrame(
         {
-            "ride_name": ["Ride A", "Ride A", "Ride B", "Ride B", "Show C"],
-            "is_open": [True, True, True, False, True],
-            "wait_time": [10, 30, 5, 0, None],
+            "ride_name": ["Ride A", "Ride A", "Ride B", "Ride B", "Show C", "Fotos com Trolls", "Zero Ride"],
+            "is_open": [True, True, True, False, True, True, True],
+            "wait_time": [10, 30, 5, 0, None, 0, 0],
             "last_updated_utc": [
                 "2026-05-21T12:00:00Z",
                 "2026-05-21T13:00:00Z",
                 "2026-05-21T12:00:00Z",
+                "2026-05-21T13:00:00Z",
+                "2026-05-21T13:00:00Z",
                 "2026-05-21T13:00:00Z",
                 "2026-05-21T13:00:00Z",
             ],
@@ -28,6 +31,8 @@ def sample_queue_df() -> pd.DataFrame:
                 "2026-05-21T12:01:00Z",
                 "2026-05-21T13:01:00Z",
                 "2026-05-21T12:01:00Z",
+                "2026-05-21T13:01:00Z",
+                "2026-05-21T13:01:00Z",
                 "2026-05-21T13:01:00Z",
                 "2026-05-21T13:01:00Z",
             ],
@@ -43,6 +48,7 @@ def test_prepare_queue_dataset_adds_analysis_columns() -> None:
     assert "is_open_bool" in df.columns
     assert "wait_time_reported" in df.columns
     assert "attraction_record_type" in df.columns
+    assert "queue_pressure_exclusion_reason" in df.columns
     assert df["wait_time"].sum() == 45
 
 
@@ -55,16 +61,46 @@ def test_missing_wait_time_is_not_converted_to_zero() -> None:
     assert show["attraction_record_type"] == "open_no_wait_time_reported"
 
 
-def test_build_wait_time_availability_flags_no_wait_attractions() -> None:
+def test_configured_non_queue_attraction_is_flagged_even_with_zero_wait() -> None:
+    df = prepare_queue_dataset(sample_queue_df())
+    photos = df.loc[df["ride_name"] == "Fotos com Trolls"].iloc[0]
+
+    assert bool(photos["wait_time_reported"])
+    assert photos["wait_time"] == 0
+    assert bool(photos["queue_pressure_excluded_by_rule"])
+    assert photos["queue_pressure_exclusion_reason"] in {
+        "configured_non_queue_experience",
+        "keyword_non_queue_experience",
+    }
+
+
+def test_build_wait_time_availability_flags_no_wait_and_zero_only_attractions() -> None:
     availability = build_wait_time_availability(sample_queue_df())
     show = availability.loc[availability["ride_name"] == "Show C"].iloc[0]
+    zero = availability.loc[availability["ride_name"] == "Zero Ride"].iloc[0]
 
     assert show["wait_time_reported_records"] == 0
     assert show["wait_time_reported_rate"] == 0
-    assert show["mode_hint"] == "scheduled_experience_candidate"
+    assert show["mode_hint"] == "scheduled_or_non_queue_candidate"
+    assert bool(zero["zero_only_reported_wait"])
 
 
-def test_build_attraction_summary_uses_open_reported_records() -> None:
+def test_filter_queue_pressure_records_excludes_zero_only_and_non_queue_by_default() -> None:
+    filtered = filter_queue_pressure_records(sample_queue_df())
+
+    assert set(filtered["ride_name"]) == {"Ride A", "Ride B"}
+    assert "Fotos com Trolls" not in set(filtered["ride_name"])
+    assert "Zero Ride" not in set(filtered["ride_name"])
+
+
+def test_filter_queue_pressure_records_can_include_zero_only_when_requested() -> None:
+    filtered = filter_queue_pressure_records(sample_queue_df(), include_zero_only_attractions=True)
+
+    assert "Zero Ride" in set(filtered["ride_name"])
+    assert "Fotos com Trolls" not in set(filtered["ride_name"])
+
+
+def test_build_attraction_summary_uses_queue_pressure_records() -> None:
     summary = build_attraction_summary(sample_queue_df(), only_open=True)
 
     assert set(summary["ride_name"]) == {"Ride A", "Ride B"}
@@ -86,4 +122,6 @@ def test_build_heatmap_matrix_returns_ride_by_hour_table() -> None:
     assert not matrix.empty
     assert "Ride A" in matrix.index
     assert "Show C" not in matrix.index
+    assert "Fotos com Trolls" not in matrix.index
+    assert "Zero Ride" not in matrix.index
     assert 9 in matrix.columns
