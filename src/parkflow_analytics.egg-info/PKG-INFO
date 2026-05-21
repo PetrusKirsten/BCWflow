@@ -1,0 +1,113 @@
+Metadata-Version: 2.4
+Name: parkflow-analytics
+Version: 0.1.0
+Summary: Queue time, visitor flow and weather intelligence for theme park operations.
+Author: Petrus
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: pandas>=2.2
+Requires-Dist: numpy>=1.26
+Requires-Dist: requests>=2.31
+Requires-Dist: python-dotenv>=1.0
+Requires-Dist: pydantic>=2.7
+Requires-Dist: beautifulsoup4>=4.12
+Requires-Dist: lxml>=5.2
+Requires-Dist: matplotlib>=3.8
+Requires-Dist: plotly>=5.22
+Requires-Dist: scikit-learn>=1.5
+Requires-Dist: streamlit>=1.35
+Provides-Extra: dev
+Requires-Dist: ipykernel>=6.29; extra == "dev"
+Requires-Dist: jupyterlab>=4.2; extra == "dev"
+Requires-Dist: pytest>=8.2; extra == "dev"
+Requires-Dist: ruff>=0.4; extra == "dev"
+
+# ParkFlow Analytics
+
+Queue time, visitor flow and weather intelligence for theme park operations.
+
+This project turns a real theme park visit into a data science case study: how can public/proxy data help us understand queues, peak hours, attraction pressure, weather effects and operational bottlenecks?
+
+> Case study: Beto Carrero World. This is an independent portfolio project and is not affiliated with, sponsored by, or endorsed by Beto Carrero World.
+
+## Project goals
+
+- Collect public/proxy queue-time data.
+- Combine queue records with weather and calendar features.
+- Explore operational patterns: attractions, hours, weekdays, weekends and weather.
+- Build a simple, interpretable wait-time prediction model.
+- Present the results in a narrative Streamlit dashboard.
+
+## Data sources
+
+Initial sources:
+
+- Queue-Times public API for live wait times.
+- Queue-Times public pages for aggregated crowd/statistical context.
+- Open-Meteo Historical Weather API for weather variables.
+- Calendar features generated locally; holidays can be added later.
+
+## Repository structure
+
+```text
+parkflow-analytics/
+  data/
+    raw/
+    interim/
+    processed/
+  notebooks/
+  src/parkflow/
+    data/
+    features/
+    visualization/
+    models/
+  dashboard/
+  reports/
+  docs/
+```
+
+## Quick start
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
+pip install -e ".[dev]"
+```
+
+Collect one live queue-time snapshot:
+
+```bash
+python -m parkflow.data.collect_queue_times
+```
+
+Collect aggregated historical context tables, when permitted:
+
+```bash
+python -m parkflow.data.historical_context
+```
+
+Build a processed snapshot table from all raw snapshots:
+
+```bash
+python -m parkflow.data.build_queue_times_dataset
+```
+
+Run the dashboard:
+
+```bash
+streamlit run dashboard/app.py
+```
+
+## Ethics and limitations
+
+- Queue times are treated as proxy data, not official park attendance.
+- Public pages and APIs must be used respectfully, with proper attribution.
+- Raw data from third-party sources should not be redistributed if terms do not allow it.
+- Any scraping-like collection must respect terms of use, robots.txt and rate limits.
+- The project does not claim operational truth about the park; it demonstrates a reproducible analytical workflow.
+
+## Attribution
+
+When using Queue-Times data in the app or dashboard, show the required attribution:
+
+> Powered by Queue-Times.com
