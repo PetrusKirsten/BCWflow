@@ -4,9 +4,10 @@ import argparse
 from datetime import datetime, timezone
 from pathlib import Path
 
-from parkflow.config import PARK_ID, PROCESSED_DIR
+from parkflow.config import PARK_ID
 from parkflow.data.operating_hours import OperatingHoursPolicy, is_within_nominal_operating_hours, now_local
-from parkflow.data.queue_times import fetch_live_queue_times, flatten_queue_times, save_raw_queue_snapshot
+from parkflow.data.queue_times import fetch_live_queue_times
+from parkflow.data.storage import LocalQueueSnapshotStorage
 
 
 def should_collect_now(
@@ -24,18 +25,6 @@ def should_collect_now(
     if force_outside_hours:
         return True
     return is_within_nominal_operating_hours(now_local(policy), policy=policy)
-
-
-def rebuild_processed_dataset() -> Path:
-    """Rebuild the processed queue-time dataset after a successful collection."""
-
-    from parkflow.data.build_queue_times_dataset import build_queue_times_dataset
-
-    df = build_queue_times_dataset()
-    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = PROCESSED_DIR / "queue_times.csv"
-    df.to_csv(out_path, index=False)
-    return out_path
 
 
 def collect_queue_times_once(
@@ -69,18 +58,21 @@ def collect_queue_times_once(
     print(f"[{started_at}] collecting one Queue-Times snapshot for park_id={park_id}...")
 
     payload = fetch_live_queue_times(park_id=park_id, timeout=timeout)
-    out_path = save_raw_queue_snapshot(payload, park_id=park_id)
-    df = flatten_queue_times(payload, park_id=park_id)
+    storage = LocalQueueSnapshotStorage()
+    result = storage.save_queue_snapshot(
+        payload,
+        park_id=park_id,
+        rebuild_processed=rebuild_processed,
+    )
 
     finished_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    print(f"[{finished_at}] saved raw queue snapshot: {out_path}")
-    print(f"[{finished_at}] rides collected: {len(df)}")
+    print(f"[{finished_at}] saved raw queue snapshot: {result.raw_snapshot_path}")
+    print(f"[{finished_at}] rides collected: {result.rows_collected}")
 
-    if rebuild_processed:
-        processed_path = rebuild_processed_dataset()
-        print(f"[{finished_at}] rebuilt processed queue dataset: {processed_path}")
+    if result.processed_dataset_path is not None:
+        print(f"[{finished_at}] rebuilt processed queue dataset: {result.processed_dataset_path}")
 
-    return out_path
+    return result.raw_snapshot_path
 
 
 def parse_args() -> argparse.Namespace:
