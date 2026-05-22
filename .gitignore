@@ -22,3 +22,4 @@ reports/figures/*.svg
 reports/model_metrics/*.json
 data/processed/queue_times.csv
 data/processed/*.csv
+data/processed/modeling_dataset.csv
