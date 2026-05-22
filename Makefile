@@ -4,6 +4,12 @@ install:
 collect-queues:
 	python -m parkflow.data.collect_queue_times
 
+collect-once:
+	python -m parkflow.data.collect_once
+
+collect-once-rebuild:
+	python -m parkflow.data.collect_once --rebuild-processed
+
 build-queues:
 	python -m parkflow.data.build_queue_times_dataset
 
