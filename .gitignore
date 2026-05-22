@@ -20,3 +20,4 @@ reports/figures/*.png
 reports/figures/*.jpg
 reports/figures/*.svg
 reports/model_metrics/*.json
+data/processed/queue_times.csv
