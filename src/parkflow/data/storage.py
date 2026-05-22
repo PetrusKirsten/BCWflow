@@ -12,9 +12,9 @@ from parkflow.data.queue_times import flatten_queue_times, save_raw_queue_snapsh
 class QueueSnapshotSaveResult:
     """Metadata returned after saving a queue-time snapshot."""
 
-    raw_snapshot_path: Path
+    raw_snapshot_path: Path | str
     rows_collected: int
-    processed_dataset_path: Path | None = None
+    processed_dataset_path: Path | str | None = None
 
 
 class LocalQueueSnapshotStorage:
