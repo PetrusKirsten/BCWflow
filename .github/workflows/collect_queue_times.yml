@@ -30,6 +30,7 @@ permissions:
 
 env:
   PYTHON_VERSION: "3.11"
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
 jobs:
   collect:
@@ -64,7 +65,7 @@ jobs:
             args+=("--rebuild-processed")
           fi
 
-          python -m parkflow.data.collect_once "${args[@]}"
+          python -m parkflow.data.collect_once --storage-backend auto "${args[@]}"
 
       - name: Upload raw snapshot artifact
         uses: actions/upload-artifact@v4
